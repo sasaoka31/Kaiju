@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ja" data-version="0.24.0" data-build="0.24.0-mvbcf6zs">
+<head>
+  <meta charset="utf-8">
+  <base href="b/0.24.0-mvbcf6zs/">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kaiju">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#1e1f23">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" href="icon.png">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Kaiju</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- トップバーとサイドバー: 並ぶものは、state.topbar / state.sidebar(レイアウトで自由に変えられる。ui.js の drawBars が作る) -->
+    <header id="topbar">
+      <button id="btn-menu" data-pop="pop-menu" title="メニュー(新規・開く・書き出し・表示・設定・レイアウト・取扱説明書)">メニュー</button>
+      <div id="topbar-actions" class="group"></div>
+    </header>
+
+    <div id="workrow">
+      <aside id="sidebar-left"></aside>
+      <!-- 1つだけある部品(サイズ・不透明度のバー)。置かれていないあいだは、ここにしまう -->
+      <div id="bar-parts" hidden>
+        <div class="vslider" id="vs-size" title="ブラシのサイズ([ と ] でも)。長押し(動かしたあと、そのまま止めていても)で、今のサイズを登録 / 解除"><div class="vs-marks"></div><div class="vs-thumb"></div></div>
+        <div class="vslider" id="vs-opacity" title="ブラシの不透明度(数字キー 1〜0 でも)"><div class="vs-thumb"></div></div>
+      </div>
+
+    <main id="canvas-area">
+      <canvas id="view"></canvas>
+      <!-- サイズバーを長押しすると出る: サイズの登録 / 解除 -->
+      <div id="size-pop"><button id="btn-mark"></button></div>
+      <div id="vs-bubble"></div>
+      <!-- 起動のとき、右下に少しのあいだ出る -->
+      <div id="splash"><img src="icon.png" alt=""><span id="splash-text">Kaiju</span></div>
+    </main>
+      <!-- 右に固めたウィンドウが、縦に並ぶ所(Kodai のカラー・線と塗りのパネルと同じ形) -->
+      <aside id="dock-right"></aside>
+    </div>
+  </div>
+
+  <!-- ここから下は、ボタンを押したときに出る小さなパネル -->
+  <div class="pop left" id="pop-menu">
+    <button data-action="new">新規作成<kbd>Ctrl+N</kbd></button>
+    <button data-action="open">開く<kbd>Ctrl+O</kbd></button>
+    <button data-action="save" title="PSD(設定で Kaiju の形式にもできる)で保存。前に保存したファイルがあれば、上書き">保存<kbd>Ctrl+S</kbd></button>
+    <button data-action="saveAs">名前を付けて保存</button>
+    <button data-action="exportPng">PNG で書き出し</button>
+    <button data-action="placeImage">画像を埋め込む</button>
+    <hr>
+    <button data-action="fit">全体を表示<kbd>Ctrl+0</kbd></button>
+    <button data-action="zoom100">100% で表示<kbd>Ctrl+1</kbd></button>
+    <button data-action="resetRotation">角度を戻す</button>
+    <hr>
+    <button data-action="toggleFinger" id="menu-finger" title="オフにすると、指では描かず(指1本は画面の移動)、ペンだけで描く"></button>
+    <button data-pop="pop-more" title="バーに置いていない機能、ぜんぶ">そのほかの機能</button>
+    <button data-action="settings">設定…</button>
+    <button data-action="shareSend" title="描いている絵と設定を、1つのファイルにして、ほかの端末へ">共有パックを送る…</button>
+    <button data-action="shareOpen" title="ほかの端末から送った、絵と設定を入れる">共有パックを開く…</button>
+    <button data-action="manual">取扱説明書</button>
+    <button data-action="checkUpdate" title="新しい版があれば、取ってきて入れ替える">新しい版を確かめる(更新)</button>
+    <button data-action="layout" title="トップバーとサイドバーのボタンを、持って好きな所へ動かす">レイアウト(ボタンの位置を変える)</button>
+    <div class="pop-note" id="app-version"></div>
+  </div>
+
+  <div class="pop side" id="pop-brush">
+    <div class="pop-head">
+      <h3 id="brush-title">ブラシ</h3>
+      <span class="group">
+        <button data-action="importBrush" title="Photoshop のブラシ(.abr)か画像から、ブラシを足す">読み込み</button>
+        <button id="brush-pick" class="ico" style="--icon: url(&quot;icons/eyedropper.png&quot;)" title="スポイト: 絵を押すと、その色を拾う(ブラシのボタンの長押しでも)"></button>
+        <button id="btn-brush-new" title="今のブラシをもとに、新しいブラシを作る">＋ 新しいブラシ</button>
+      </span>
+    </div>
+    <div id="brush-list"></div>
+    <details id="brush-editor">
+      <summary>このブラシの設定</summary>
+      <div id="brush-editor-body"></div>
+    </details>
+    <div id="brush-global"></div>
+  </div>
+
+  <div class="pop side" id="pop-fill">
+    <div class="pop-head"><h3>バケツ(塗りつぶし)</h3></div>
+    <div id="fill-body"></div>
+  </div>
+
+  <div class="pop side adjust" id="pop-hsb">
+    <div class="pop-head"><h3>色相・彩度・明るさ</h3><button id="hsb-reset" title="3つとも 0 に戻す">0 に戻す</button></div>
+    <div class="opts">
+      <label class="opt"><span>色相</span><input type="range" class="color-track" id="hsb-h" min="-180" max="180" value="0"><em id="hsb-h-val"></em></label>
+      <label class="opt"><span>彩度</span><input type="range" class="color-track" id="hsb-s" min="-100" max="100" value="0"><em id="hsb-s-val"></em></label>
+      <label class="opt"><span>明るさ</span><input type="range" class="color-track" id="hsb-l" min="-100" max="100" value="0"><em id="hsb-l-val"></em></label>
+      <div class="opt-hint">今のレイヤーの色を変えます。選択範囲があれば、その中だけです。バーの色は、動かしたらなる色です。</div>
+    </div>
+    <div class="row-end"><button id="hsb-cancel">やめる</button><button id="hsb-apply" class="primary">適用</button></div>
+  </div>
+
+  <div class="pop side adjust" id="pop-sharpen">
+    <div class="pop-head"><h3>シャープ</h3><button id="sharpen-reset" title="0 に戻す">0 に戻す</button></div>
+    <div class="opts">
+      <label class="opt" title="くっきりさせる強さ"><span>強さ</span><input type="range" id="sharpen-amount" min="0" max="300" value="100"><em id="sharpen-amount-val"></em></label>
+      <label class="opt" title="どのくらいの太さの輪郭を、くっきりさせるか。小さいと細かい所、大きいと大きな明暗"><span>半径</span><input type="range" id="sharpen-radius" min="1" max="40" value="2"><em id="sharpen-radius-val"></em></label>
+      <label class="opt" title="まわりとの差が、これより小さい所は、そのままにする(ざらつき・ノイズを強めない)"><span>しきい値</span><input type="range" id="sharpen-threshold" min="0" max="60" value="0"><em id="sharpen-threshold-val"></em></label>
+      <div class="opt-hint">今のレイヤーの輪郭を、くっきりさせます(アンシャープマスク)。選択範囲があれば、その中だけです。</div>
+    </div>
+    <div class="row-end"><button id="sharpen-cancel">やめる</button><button id="sharpen-apply" class="primary">適用</button></div>
+  </div>
+
+  <div class="pop side adjust" id="pop-noise">
+    <div class="pop-head"><h3>ノイズ</h3><button id="noise-reset" title="0 に戻す">0 に戻す</button></div>
+    <div class="opts">
+      <label class="opt"><span>量</span><input type="range" id="noise-amount" min="0" max="100" value="20"><em id="noise-amount-val"></em></label>
+      <label class="opt check"><input type="checkbox" id="noise-color">色つきのノイズ(オフなら、明るさだけ)</label>
+      <div class="opt-hint">今のレイヤーの絵のある所に、ざらざらを足します。選択範囲があれば、その中だけです。</div>
+    </div>
+    <div class="row-end"><button id="noise-cancel">やめる</button><button id="noise-apply" class="primary">適用</button></div>
+  </div>
+
+  <div class="pop side adjust" id="pop-levels">
+    <div class="pop-head"><h3>レベル補正</h3><button id="levels-reset" title="はじめの値に戻す">戻す</button></div>
+    <canvas id="lv-hist" width="256" height="60" title="明るさの分布(左 = 暗い、右 = 明るい)"></canvas>
+    <div class="opts">
+      <label class="opt"><span>入力: 黒</span><input type="range" id="lv-in0" min="0" max="253" value="0"><em id="lv-in0-val"></em></label>
+      <label class="opt"><span>入力: 中間</span><input type="range" id="lv-gamma" min="10" max="300" value="100"><em id="lv-gamma-val"></em></label>
+      <label class="opt"><span>入力: 白</span><input type="range" id="lv-in1" min="2" max="255" value="255"><em id="lv-in1-val"></em></label>
+      <label class="opt"><span>出力: 黒</span><input type="range" id="lv-out0" min="0" max="255" value="0"><em id="lv-out0-val"></em></label>
+      <label class="opt"><span>出力: 白</span><input type="range" id="lv-out1" min="0" max="255" value="255"><em id="lv-out1-val"></em></label>
+      <div class="opt-hint">「入力: 黒」より暗い所はまっ黒に、「入力: 白」より明るい所はまっ白になります。「中間」は、大きいほど明るくなります。</div>
+    </div>
+    <div class="row-end"><button id="levels-cancel">やめる</button><button id="levels-apply" class="primary">適用</button></div>
+  </div>
+
+  <!-- 今のツールの設定(図形・グラデーション・指先・スタンプ)。そのツールのボタンを、もう一度押すと出る -->
+  <div class="pop side" id="pop-tool">
+    <div class="pop-head"><h3 id="tool-title">ツールの設定</h3></div>
+    <div id="tool-body"></div>
+  </div>
+
+  <!-- そのほかの機能: バーに置いていないもの、ぜんぶ -->
+  <div class="pop left" id="pop-more">
+    <div class="pop-head"><h3>そのほかの機能</h3></div>
+    <div id="more-body"></div>
+    <div class="pop-note">よく使うものは、メニュー →「レイアウト」で、バーに置けます。</div>
+  </div>
+
+  <div class="pop" id="pop-layers">
+    <div class="pop-head">
+      <h3>レイヤー</h3>
+      <div class="group">
+        <button data-action="mergeDown" class="ico" style="--icon: url(&quot;icons/merge.png&quot;)" title="下のレイヤーと結合 (Ctrl+E)。グループを選んでいるときは、グループを1枚にする"></button>
+        <button data-action="clipToggle" class="ico" id="btn-clip" style="--icon: url(&quot;icons/clip-down.png&quot;)" title="マスクをクリップ: 下のレイヤー(またはグループ)に絵がある所にだけ表示する。クリップしている間は、色が付く"></button>
+        <button data-action="groupLayer" class="ico" style="--icon: url(&quot;icons/folder.png&quot;)" title="選んでいるレイヤーを、グループ(フォルダ)にまとめる(グループには、上のレイヤーをクリップできる)"></button>
+        <button data-action="addLayer" class="icon-text" title="新規レイヤー (Ctrl+Shift+N)">＋</button>
+      </div>
+    </div>
+    <!-- 重ね方・不透明度・複製・ロック・削除の欄。ふだんはしまってあり、レイヤーを左にスライドすると、その行の中に出る(ui.js の drawLayers が動かす) -->
+    <div id="layer-ctl-home" hidden>
+    <div id="layer-ctl">
+    <!-- どれを・どの順に出すかは、state.layerCtl(レイアウト →「レイヤーの欄…」で変えられる。ui.js の applyLayerUi が、data-ctl の印で並べる) -->
+    <div class="layer-props">
+      <div class="row main">
+        <label class="opacity-row" data-ctl="opacity" title="不透明度"><input type="range" id="layer-opacity" min="0" max="100"><em id="layer-opacity-val"></em></label>
+        <button id="blend-toggle" data-ctl="blend" title="重ね方(合成モード)。押すたびに、2つを切り替える(どの2つかは、設定で選べる)"></button>
+        <label class="check" id="clip-row" hidden><input type="checkbox" id="layer-clip">マスクをクリップ</label>
+      </div>
+      <div class="row" id="layer-more">
+        <select id="layer-blend" data-ctl="blendAll" title="合成モード(ぜんぶ)"></select>
+        <label class="check" id="lock-row" data-ctl="alphaLock" title="透明な所には描けなくする(はみ出さずに色を変えられる)"><input type="checkbox" id="layer-lock">アルファロック</label>
+      </div>
+    </div>
+    <div class="layer-buttons">
+      <button data-action="renameLayer" data-ctl="rename" data-opt="rename" title="名前を変更(一覧でダブルクリックでも)">名前</button>
+      <button data-action="dupLayer" data-ctl="dup" title="複製 (Ctrl+J)">複製</button>
+      <button data-action="layerUp" data-ctl="up" data-opt="upDown" class="icon-text" title="上へ">▲</button>
+      <button data-action="layerDown" data-ctl="down" data-opt="upDown" class="icon-text" title="下へ">▼</button>
+      <button data-action="ungroupLayer" data-ctl="ungroup" data-opt="ungroup" title="グループをほどく">解除</button>
+      <button data-action="clipToggle" data-ctl="clip" class="ico" style="--icon: url(&quot;icons/clip-down.png&quot;)" title="マスクをクリップ(付ける / 外す)"></button>
+      <button data-action="mergeDown" data-ctl="merge" class="ico" style="--icon: url(&quot;icons/merge.png&quot;)" title="下のレイヤーと結合"></button>
+      <button data-action="clearLayer" data-ctl="clear" title="レイヤーの中身を消す (Delete)">消去</button>
+      <button data-action="lockLayer" data-ctl="lock" id="btn-lock" class="ico" style="--icon: url(&quot;icons/lock.png&quot;)" title="ロック: このレイヤーに、描く・動かす・消す・削除ができなくなる"></button>
+      <button data-action="deleteLayer" data-ctl="delete" class="danger ico" style="--icon: url(&quot;icons/trash.png&quot;)" title="レイヤーを削除"></button>
+    </div>
+    </div>
+    </div>
+    <div id="layer-wrap"><div id="layer-list"></div><i id="layer-scroll"></i></div>
+  </div>
+
+  <div class="pop" id="pop-color">
+    <div class="pop-head"><h3>カラー</h3></div>
+    <canvas id="color-wheel" width="520" height="520" hidden></canvas>
+    <div class="color-row">
+      <canvas id="color-sv" width="240" height="170"></canvas>
+      <canvas id="color-hue" width="20" height="170"></canvas>
+    </div>
+    <div class="color-foot">
+      <div class="swatch-stack">
+        <div id="sw-bg" class="swatch bg" title="背景色(クリックで入れ替え)"></div>
+        <div id="sw-fg" class="swatch fg" title="描画色"></div>
+      </div>
+      <button id="btn-swap" class="icon-text color-extra" title="描画色と背景色を入れ替え (X)">⇄</button>
+      <button id="btn-default" class="color-extra" title="黒と白に戻す (D)">初期</button>
+      <input type="text" id="in-hex" class="color-extra" maxlength="7" spellcheck="false" title="色のコード">
+      <button id="sw-toggle" class="ico" style="--icon: url(&quot;icons/palette.png&quot;)" title="パレット(履歴と、よく使う色)を、出す / しまう"></button>
+    </div>
+    <div id="cmyk-read" class="color-extra" title="この色を CMYK(印刷のインクの割合)にしたときの、目安の数字"></div>
+    <div id="sw-box">
+      <div class="sw-label">履歴</div>
+      <div id="recent-colors" class="sw-grid" title="使った色(新しい順)。押すと、その色になる"></div>
+      <div class="sw-label">よく使う色<span>空いたマスを押すと、今の色を登録。長押しで、入れ替え / 外す</span></div>
+      <div id="palette" class="sw-grid"></div>
+    </div>
+  </div>
+
+  <!-- レイアウトを変えている間だけ出る: 説明と、置いていないボタンの箱 -->
+  <div id="layout-bar" hidden>
+    <div class="lb-head">
+      <b>レイアウト</b><span>下の箱のボタンを持って、トップバーかサイドバーの好きな所へ(同じボタンを、いくつ置いてもかまいません)。バーのボタンをこの箱へ入れると、外せます</span>
+      <button id="layout-up" class="lb-btn" title="下の箱を、上へ送る">▲</button><button id="layout-down" class="lb-btn" title="下の箱を、下へ送る">▼</button><button id="layout-layer" class="lb-btn" title="レイヤーを選んだときに出る欄(不透明度・重ね方・複製・ロック・削除など)の、出すものと並び">レイヤーの欄…</button><button id="layout-look" class="lb-btn" title="バーとタブの色、敷く素材、バーの形などを変える">色とデザイン…</button><button id="layout-reset" class="lb-btn">はじめの並びに戻す</button><button id="layout-done" class="lb-btn primary">完了</button>
+    </div>
+    <div id="layout-tray"></div>
+  </div>
+
+  <!-- 切り抜きツールの間だけ出る -->
+  <div id="crop-bar" hidden>
+    <span id="crop-info"></span>
+    <button data-action="cropCancel">やめる</button><button data-action="cropApply" class="primary">切り抜く</button>
+  </div>
+
+  <!-- 移動・変形ツールの間だけ出る(画面の下。絵が見やすいように) -->
+  <div id="move-bar" hidden>
+    <div class="seg" id="move-modes">
+      <button data-move-mode="scale" title="動かす・大きさを変える・回す">拡縮・回転</button>
+      <button data-move-mode="free" title="4つの角を、1つずつ好きな所へ(台形・ななめ)">自由変形</button>
+      <button data-move-mode="mesh" title="4×4 の点を動かして、絵を曲げる">メッシュ</button>
+    </div>
+    <span class="mb-sep"></span>
+    <span class="mb-label">反転</span>
+    <button data-action="moveFlipH" title="枠の中の絵を、左右に反転">左右</button>
+    <button data-action="moveFlipV" title="枠の中の絵を、上下に反転">上下</button>
+    <span class="mb-sep"></span>
+    <label class="check" title="角を持って大きさを変えるとき、縦と横の比を保つ(拡縮・回転のとき)"><input type="checkbox" id="move-ratio">縦横比を固定</label>
+    <button data-action="moveDone" class="primary" title="選択を解除して、前のツールに戻る(キャンバスの外を押しても同じ)">完了</button>
+  </div>
+
+  <!-- 仮想 CMYK: 画面の色を、印刷で出せる色の幅に近づける(あざやかな緑・青・赤を、にぶくする) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="cmyk-proof" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="0.92 0.04 0.04 0 0  0.10 0.80 0.10 0 0  0.08 0.20 0.72 0 0  0 0 0 1 0"/></filter></svg>
+
+  <div id="modal-root"></div>
+  <div id="toast"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

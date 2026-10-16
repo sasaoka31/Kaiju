@@ -1,0 +1,12 @@
+{
+  "name": "Kaiju",
+  "short_name": "Kaiju",
+  "lang": "ja",
+  "start_url": "../../",
+  "scope": "../../",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1e1f23",
+  "theme_color": "#1e1f23",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}
